@@ -59,6 +59,18 @@ function throwIfError(error: unknown) {
   if (error) throw error;
 }
 
+
+export async function getOrCreateAnonymousUser() {
+  ensureSupabaseConfig();
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (sessionData.session?.user) return toCurrentUser(sessionData.session.user);
+  const { data, error } = await supabase.auth.signInAnonymously({
+    options: { data: { full_name: "Doña Mónica" } }
+  });
+  throwIfError(error);
+  if (!data.user) throw new Error("No se pudo abrir la app sin inicio de sesión.");
+  return toCurrentUser(data.user);
+}
 export async function getCurrentUser() {
   ensureSupabaseConfig();
   const { data, error } = await supabase.auth.getUser();
@@ -75,6 +87,21 @@ export async function loginWithEmail(email: string, password: string) {
   return toCurrentUser(data.user);
 }
 
+
+export async function signUpWithEmail(email: string, password: string, fullName = "Doña Mónica") {
+  ensureSupabaseConfig();
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    options: {
+      data: { full_name: fullName },
+      emailRedirectTo: `${supabaseConfig.appUrl}/login`
+    }
+  });
+  throwIfError(error);
+  if (!data.user) throw new Error("No se pudo crear la cuenta.");
+  return toCurrentUser(data.user);
+}
 export async function logout() {
   ensureSupabaseConfig();
   const { error } = await supabase.auth.signOut();
@@ -451,6 +478,37 @@ export async function registerCustomerPayment(sale: WithDocument<EsikaSale>, amo
   return updated;
 }
 
+export async function deleteAccount(accountId: string) {
+  return deleteUserDocument(TABLES.accounts, accountId);
+}
+
+export async function deleteCategory(categoryId: string) {
+  return deleteUserDocument(TABLES.categories, categoryId);
+}
+
+export async function deleteBudget(budgetId: string) {
+  return deleteUserDocument(TABLES.budgets, budgetId);
+}
+
+export async function deleteRecurringPayment(paymentId: string) {
+  return deleteUserDocument(TABLES.recurringPayments, paymentId);
+}
+
+export async function deleteSavingsGoal(goalId: string) {
+  return deleteUserDocument(TABLES.savingsGoals, goalId);
+}
+
+export async function deleteEsikaProduct(productId: string) {
+  return deleteUserDocument(TABLES.esikaProducts, productId);
+}
+
+export async function deleteEsikaCustomer(customerId: string) {
+  return deleteUserDocument(TABLES.esikaCustomers, customerId);
+}
+
+export async function deleteEsikaSale(saleId: string) {
+  return deleteUserDocument(TABLES.esikaSales, saleId);
+}
 export async function createNotification(input: Omit<AppNotification, "createdAt">) {
   return createUserDocument<AppNotification>(TABLES.notifications, { ...input, createdAt: new Date().toISOString() });
 }
@@ -462,4 +520,7 @@ export async function markNotificationRead(notificationId: string) {
 export async function setNotificationPreference(preferenceId: string, enabled: boolean) {
   return updateUserDocument<NotificationPreference>(TABLES.notificationPreferences, preferenceId, { enabled });
 }
+
+
+
 

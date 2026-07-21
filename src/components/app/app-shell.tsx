@@ -12,7 +12,6 @@ import {
   CreditCard,
   Home,
   Landmark,
-  LogOut,
   Package,
   PiggyBank,
   ReceiptText,
@@ -27,7 +26,6 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { AuthGate, useAuth } from "@/context/auth-context";
 import { FinanceProvider } from "@/context/finance-context";
-import { Button } from "@/components/ui/button";
 
 interface NavItem {
   href: string;
@@ -70,7 +68,7 @@ export function ProtectedAppLayout({ children }: { children: ReactNode }) {
 
 function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { profile, logoutUser } = useAuth();
+  const { profile } = useAuth();
   const allNav = [...primaryNav, ...secondaryNav];
 
   return (
@@ -94,8 +92,7 @@ function AppShell({ children }: { children: ReactNode }) {
 
         <div className="mt-4 rounded-lg bg-linen p-3 dark:bg-white/5">
           <p className="text-sm font-semibold">{profile?.fullName || "Doña Mónica"}</p>
-          <p className="text-xs text-ink/60 dark:text-cream/60">Cuenta personal protegida</p>
-          <Button tone="ghost" size="sm" className="mt-2 w-full justify-start" icon={<LogOut size={16} />} onClick={logoutUser}>Cerrar sesión</Button>
+          <p className="text-xs text-ink/60 dark:text-cream/60">Acceso directo sin contraseña</p>
         </div>
       </aside>
 
@@ -142,3 +139,5 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 }
 
 export { primaryNav, secondaryNav };
+
+

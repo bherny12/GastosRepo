@@ -1,2 +1,2 @@
-﻿import { RecoveryPage } from "@/features/pages";
-export default function Page() { return <RecoveryPage />; }
+﻿import { redirect } from "next/navigation";
+export default function Page() { redirect("/dashboard"); }

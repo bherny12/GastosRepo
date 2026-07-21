@@ -225,6 +225,7 @@ export function TransactionEntryPage({ type }: { type: "income" | "expense" }) {
     setError("");
     const formData = new FormData(event.currentTarget);
     const now = new Date();
+    const necessityValue = formString(formData, "necessityLevel");
     const input = {
       type,
       amount: formNumber(formData, "amount"),
@@ -233,7 +234,7 @@ export function TransactionEntryPage({ type }: { type: "income" | "expense" }) {
       description: formString(formData, "description"),
       transactionDate: joinDateAndTime(formString(formData, "date") || toInputDate(now), formString(formData, "time") || toInputTime(now)),
       paymentMethod: formString(formData, "paymentMethod") || "Efectivo",
-      necessityLevel: type === "expense" ? (formString(formData, "necessityLevel") as "necessary" | "important" | "avoidable") : undefined,
+      necessityLevel: type === "expense" ? ((necessityValue || "necessary") as "necessary" | "important" | "avoidable") : undefined,
       isRecurring: formData.get("isRecurring") === "on",
       recurringPaymentId: "",
       notes: formString(formData, "notes"),
@@ -371,7 +372,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 }
 
 export function BudgetsPage() {
-  const { data, saving, addBudget } = useFinance();
+  const { data, saving, addBudget, removeBudget } = useFinance();
   const [error, setError] = useState("");
   const expenseCategories = categoriesFor(data, "expense");
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -411,7 +412,7 @@ export function BudgetsPage() {
             <Surface key={budget.$id}>
               <div className="flex items-start justify-between gap-4"><div><p className="font-bold text-ink">{categoryName(data, budget.categoryId)}</p><p className="text-sm text-ink/60">{budget.month}/{budget.year}</p></div><Badge tone={percent >= 100 ? "danger" : percent >= budget.alertPercentage ? "gold" : "success"}>{Math.round(percent)} % usado</Badge></div>
               <div className="mt-4"><ProgressBar value={percent} tone={percent >= 100 ? "danger" : percent >= budget.alertPercentage ? "gold" : "success"} /></div>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-sm"><Detail label="Asignado" value={formatCurrency(budget.amount)} /><Detail label="Utilizado" value={formatCurrency(used)} /><Detail label="Restante" value={formatCurrency(budget.amount - used)} /></div>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-sm"><Detail label="Asignado" value={formatCurrency(budget.amount)} /><Detail label="Utilizado" value={formatCurrency(used)} /><Detail label="Restante" value={formatCurrency(budget.amount - used)} /></div><Button className="mt-4" type="button" tone="danger" size="sm" icon={<Trash2 size={16} />} onClick={() => window.confirm("¿Eliminar este presupuesto?") && removeBudget(budget.$id)}>Eliminar</Button>
             </Surface>
           );
         })}
@@ -462,7 +463,7 @@ function CalendarRow({ title, amount, label }: { title: string; amount: number; 
 }
 
 export function AccountsPage() {
-  const { data, saving, addAccount, addTransfer } = useFinance();
+  const { data, saving, addAccount, removeAccount, addTransfer } = useFinance();
   const [error, setError] = useState("");
   const total = sum(data.accounts.filter((account) => account.isActive).map((account) => account.currentBalance));
   async function accountSubmit(event: FormEvent<HTMLFormElement>) {
@@ -489,13 +490,13 @@ export function AccountsPage() {
         <Surface><h2 className="font-bold">Nueva cuenta</h2><form className="mt-4 grid gap-4" onSubmit={accountSubmit}>{error ? <p className="rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral">{error}</p> : null}<Field label="Nombre"><Input name="name" required /></Field><Field label="Tipo"><Select name="type"><option>Efectivo</option><option>Yape</option><option>Plin</option><option>Cuenta bancaria</option><option>Tarjeta</option><option>Caja de ventas de Ésika</option><option>Ahorros</option><option>Otra cuenta</option></Select></Field><Field label="Saldo inicial"><Input name="initialBalance" type="number" min="0" step="0.01" defaultValue={0} /></Field><Button disabled={saving}>Crear cuenta</Button></form></Surface>
         <Surface><h2 className="font-bold">Transferir entre cuentas</h2><form className="mt-4 grid gap-4" onSubmit={transferSubmit}><Field label="Origen"><Select name="sourceAccountId">{data.accounts.map((account) => <option key={account.$id} value={account.$id}>{account.name}</option>)}</Select></Field><Field label="Destino"><Select name="destinationAccountId">{data.accounts.map((account) => <option key={account.$id} value={account.$id}>{account.name}</option>)}</Select></Field><Field label="Monto"><Input name="amount" type="number" min="0" step="0.01" required /></Field><div className="grid grid-cols-2 gap-3"><Field label="Fecha"><Input name="date" type="date" defaultValue={toInputDate()} /></Field><Field label="Hora"><Input name="time" type="time" defaultValue={toInputTime()} /></Field></div><Field label="Notas"><Input name="notes" /></Field><Button disabled={saving} icon={<ArrowRightLeft size={18} />}>Registrar transferencia</Button></form></Surface>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{data.accounts.map((account) => <StatCard key={account.$id} label={account.name} value={formatCurrency(account.currentBalance)} helper={account.type} />)}</div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{data.accounts.map((account) => <Surface key={account.$id}><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-ink/60">{account.name}</p><p className="mt-2 text-2xl font-black text-ink">{formatCurrency(account.currentBalance)}</p><p className="mt-1 text-sm text-ink/55">{account.type}</p></div><Button type="button" tone="danger" size="sm" aria-label={`Eliminar ${account.name}`} onClick={() => window.confirm("¿Eliminar esta cuenta? También se quitarán sus movimientos asociados.") && removeAccount(account.$id)}><Trash2 size={16} /></Button></div></Surface>)}</div>
     </div>
   );
 }
 
 export function RecurringPaymentsPage() {
-  const { data, saving, addRecurringPayment, payRecurring } = useFinance();
+  const { data, saving, addRecurringPayment, removeRecurringPayment, payRecurring } = useFinance();
   const [error, setError] = useState("");
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -510,13 +511,13 @@ export function RecurringPaymentsPage() {
     <div className="space-y-5">
       <PageHeader title="Pagos recurrentes" description="Alquiler, universidades, servicios, cuotas y compromisos familiares." />
       <Surface><form className="grid gap-4 md:grid-cols-3" onSubmit={onSubmit}>{error ? <p className="rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral md:col-span-3">{error}</p> : null}<Field label="Nombre"><Input name="name" placeholder="Alquiler, Universidad 1" required /></Field><Field label="Monto esperado"><Input name="amount" type="number" min="0" step="0.01" required /></Field><Field label="Categoría"><Select name="categoryId">{categoriesFor(data, "expense").map((category) => <option key={category.$id} value={category.$id}>{category.name}</option>)}</Select></Field><Field label="Cuenta sugerida"><Select name="accountId"><option value="">Elegir al pagar</option>{data.accounts.map((account) => <option key={account.$id} value={account.$id}>{account.name}</option>)}</Select></Field><Field label="Frecuencia"><Select name="frequency" defaultValue="monthly"><option value="weekly">Semanal</option><option value="biweekly">Quincenal</option><option value="monthly">Mensual</option><option value="quarterly">Trimestral</option><option value="yearly">Anual</option></Select></Field><Field label="Día de vencimiento"><Input name="dueDay" type="number" min="1" max="31" defaultValue={1} /></Field><Field label="Próximo vencimiento"><Input name="nextDueDate" type="date" defaultValue={toInputDate()} /></Field><Field label="Prioridad"><Select name="priority" defaultValue="high"><option value="high">Alta</option><option value="medium">Media</option><option value="low">Baja</option></Select></Field><Field label="Recordar días antes"><Input name="reminderDays" type="number" min="0" max="30" defaultValue={3} /></Field><div className="md:col-span-3"><Field label="Notas"><Textarea name="notes" /></Field></div><div className="md:col-span-3"><Button disabled={saving}>Guardar compromiso</Button></div></form></Surface>
-      <div className="grid gap-4 lg:grid-cols-2">{data.recurringPayments.length === 0 ? <EmptyState title="Sin compromisos registrados" description="Agregue los pagos importantes para recibir alertas claras." /> : data.recurringPayments.map((payment) => { const days = Math.ceil((new Date(payment.nextDueDate).getTime() - Date.now()) / 86400000); return <Surface key={payment.$id}><div className="flex items-start justify-between gap-4"><div><p className="font-bold">{payment.name}</p><p className="text-sm text-ink/60">Vence: {formatDate(payment.nextDueDate)}</p></div><Badge tone={days <= 1 ? "danger" : days <= payment.reminderDays ? "gold" : "info"}>{days < 0 ? "Vencido" : days === 0 ? "Vence hoy" : `Vence en ${days} días`}</Badge></div><p className="mt-4 text-2xl font-bold">{formatCurrency(payment.amount)}</p><p className="mt-2 text-sm text-ink/65">Estado: {recurringStatusLabels[payment.status]}</p><Button className="mt-4" disabled={saving || !defaultAccount} onClick={() => payRecurring(payment, payment.accountId || defaultAccount)} icon={<CheckCircle2 size={18} />}>Registrar como pagado</Button></Surface>; })}</div>
+      <div className="grid gap-4 lg:grid-cols-2">{data.recurringPayments.length === 0 ? <EmptyState title="Sin compromisos registrados" description="Agregue los pagos importantes para recibir alertas claras." /> : data.recurringPayments.map((payment) => { const days = Math.ceil((new Date(payment.nextDueDate).getTime() - Date.now()) / 86400000); return <Surface key={payment.$id}><div className="flex items-start justify-between gap-4"><div><p className="font-bold">{payment.name}</p><p className="text-sm text-ink/60">Vence: {formatDate(payment.nextDueDate)}</p></div><Badge tone={days <= 1 ? "danger" : days <= payment.reminderDays ? "gold" : "info"}>{days < 0 ? "Vencido" : days === 0 ? "Vence hoy" : `Vence en ${days} días`}</Badge></div><p className="mt-4 text-2xl font-bold">{formatCurrency(payment.amount)}</p><p className="mt-2 text-sm text-ink/65">Estado: {recurringStatusLabels[payment.status]}</p><div className="mt-4 flex flex-wrap gap-2"><Button disabled={saving || !defaultAccount} onClick={() => payRecurring(payment, payment.accountId || defaultAccount)} icon={<CheckCircle2 size={18} />}>Registrar como pagado</Button><Button type="button" tone="danger" size="sm" icon={<Trash2 size={16} />} onClick={() => window.confirm("¿Eliminar este compromiso?") && removeRecurringPayment(payment.$id)}>Eliminar</Button></div></Surface>; })}</div>
     </div>
   );
 }
 
 export function SavingsGoalsPage() {
-  const { data, saving, addSavingsGoal, addSavingsContribution } = useFinance();
+  const { data, saving, addSavingsGoal, removeSavingsGoal, addSavingsContribution } = useFinance();
   const [error, setError] = useState("");
   async function goalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -538,13 +539,13 @@ export function SavingsGoalsPage() {
     <div className="space-y-5">
       <PageHeader title="Ahorros y metas" description="Metas familiares con avances visibles y mensajes amables." />
       <Surface><form className="grid gap-4 md:grid-cols-4" onSubmit={goalSubmit}>{error ? <p className="rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral md:col-span-4">{error}</p> : null}<Field label="Nombre"><Input name="name" placeholder="Matrícula, alquiler, emergencias" required /></Field><Field label="Objetivo"><Input name="targetAmount" type="number" min="0" step="0.01" required /></Field><Field label="Ahorrado"><Input name="currentAmount" type="number" min="0" step="0.01" defaultValue={0} /></Field><Field label="Fecha objetivo"><Input name="targetDate" type="date" defaultValue={toInputDate()} /></Field><div className="md:col-span-4"><Button disabled={saving}>Crear meta</Button></div></form></Surface>
-      <div className="grid gap-4 lg:grid-cols-2">{data.savingsGoals.length === 0 ? <EmptyState title="Aún no hay metas" description="Cree una meta para separar dinero con más tranquilidad." /> : data.savingsGoals.map((goal) => { const percent = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0; return <Surface key={goal.$id}><div className="flex items-start justify-between gap-4"><div><p className="font-bold">{goal.name}</p><p className="text-sm text-ink/60">Objetivo: {formatDate(goal.targetDate)}</p></div><Badge tone={percent >= 100 ? "success" : "gold"}>{Math.round(percent)} %</Badge></div><div className="mt-4"><ProgressBar value={percent} tone={percent >= 100 ? "success" : "gold"} /></div><p className="mt-3 text-sm text-ink/70">Doña Mónica, ya alcanzó el {Math.round(percent)} % de su meta.</p><div className="mt-4 grid grid-cols-2 gap-2"><Detail label="Ahorrado" value={formatCurrency(goal.currentAmount)} /><Detail label="Falta" value={formatCurrency(Math.max(0, goal.targetAmount - goal.currentAmount))} /></div><form className="mt-4 grid gap-3 sm:grid-cols-3" onSubmit={(event) => contributionSubmit(event, goal.$id)}><Input name="amount" type="number" min="0" step="0.01" placeholder="Aporte" required /><Input name="date" type="date" defaultValue={toInputDate()} /><Button disabled={saving} size="sm">Aportar</Button><Input className="sm:col-span-3" name="notes" placeholder="Nota del aporte" /></form></Surface>; })}</div>
+      <div className="grid gap-4 lg:grid-cols-2">{data.savingsGoals.length === 0 ? <EmptyState title="Aún no hay metas" description="Cree una meta para separar dinero con más tranquilidad." /> : data.savingsGoals.map((goal) => { const percent = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0; return <Surface key={goal.$id}><div className="flex items-start justify-between gap-4"><div><p className="font-bold">{goal.name}</p><p className="text-sm text-ink/60">Objetivo: {formatDate(goal.targetDate)}</p></div><Badge tone={percent >= 100 ? "success" : "gold"}>{Math.round(percent)} %</Badge></div><div className="mt-4"><ProgressBar value={percent} tone={percent >= 100 ? "success" : "gold"} /></div><p className="mt-3 text-sm text-ink/70">Doña Mónica, ya alcanzó el {Math.round(percent)} % de su meta.</p><div className="mt-4 grid grid-cols-2 gap-2"><Detail label="Ahorrado" value={formatCurrency(goal.currentAmount)} /><Detail label="Falta" value={formatCurrency(Math.max(0, goal.targetAmount - goal.currentAmount))} /></div><Button className="mt-4" type="button" tone="danger" size="sm" icon={<Trash2 size={16} />} onClick={() => window.confirm("¿Eliminar esta meta de ahorro?") && removeSavingsGoal(goal.$id)}>Eliminar meta</Button><form className="mt-4 grid gap-3 sm:grid-cols-3" onSubmit={(event) => contributionSubmit(event, goal.$id)}><Input name="amount" type="number" min="0" step="0.01" placeholder="Aporte" required /><Input name="date" type="date" defaultValue={toInputDate()} /><Button disabled={saving} size="sm">Aportar</Button><Input className="sm:col-span-3" name="notes" placeholder="Nota del aporte" /></form></Surface>; })}</div>
     </div>
   );
 }
 
 export function EsikaProductsPage() {
-  const { data, saving, addEsikaProduct } = useFinance();
+  const { data, saving, addEsikaProduct, removeEsikaProduct } = useFinance();
   const [image, setImage] = useState<File | undefined>();
   const [error, setError] = useState("");
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -559,7 +560,7 @@ export function EsikaProductsPage() {
     <div className="space-y-5">
       <PageHeader title="Productos Ésika" description="Inventario, precios, campañas y alertas por poco stock." />
       <Surface><form className="grid gap-4 md:grid-cols-3" onSubmit={onSubmit}>{error ? <p className="rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral md:col-span-3">{error}</p> : null}<Field label="Producto"><Input name="name" required /></Field><Field label="Código"><Input name="code" /></Field><Field label="Categoría"><Select name="category">{esikaProductCategories.map((category) => <option key={category}>{category}</option>)}</Select></Field><Field label="Campaña"><Input name="campaign" /></Field><Field label="Precio compra"><Input name="purchasePrice" type="number" min="0" step="0.01" defaultValue={0} /></Field><Field label="Precio venta"><Input name="salePrice" type="number" min="0" step="0.01" required /></Field><Field label="Stock"><Input name="stock" type="number" min="0" defaultValue={0} /></Field><Field label="Stock mínimo"><Input name="minimumStock" type="number" min="0" defaultValue={1} /></Field><Field label="Fotografía"><Input type="file" accept="image/*" onChange={(event) => setImage(event.target.files?.[0])} /></Field><div className="md:col-span-3"><Field label="Notas"><Textarea name="notes" /></Field></div><div className="md:col-span-3"><Button disabled={saving} icon={<Package size={18} />}>Guardar producto</Button></div></form></Surface>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{data.esikaProducts.length === 0 ? <EmptyState title="Sin productos registrados" description="Agregue productos para vender y controlar stock." /> : data.esikaProducts.map((product) => <Surface key={product.$id}><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{product.name}</p><p className="text-sm text-ink/60">{product.category} · {product.campaign || "Sin campaña"}</p></div>{product.stock <= product.minimumStock ? <Badge tone="danger">Poco stock</Badge> : <Badge tone="success">Disponible</Badge>}</div><div className="mt-4 grid grid-cols-3 gap-2"><Detail label="Stock" value={String(product.stock)} /><Detail label="Compra" value={formatCurrency(product.purchasePrice)} /><Detail label="Venta" value={formatCurrency(product.salePrice)} /></div>{product.stock <= product.minimumStock ? <p className="mt-3 rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral">Quedan pocas unidades de este producto.</p> : null}</Surface>)}</div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{data.esikaProducts.length === 0 ? <EmptyState title="Sin productos registrados" description="Agregue productos para vender y controlar stock." /> : data.esikaProducts.map((product) => <Surface key={product.$id}><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{product.name}</p><p className="text-sm text-ink/60">{product.category} · {product.campaign || "Sin campaña"}</p></div>{product.stock <= product.minimumStock ? <Badge tone="danger">Poco stock</Badge> : <Badge tone="success">Disponible</Badge>}</div><div className="mt-4 grid grid-cols-3 gap-2"><Detail label="Stock" value={String(product.stock)} /><Detail label="Compra" value={formatCurrency(product.purchasePrice)} /><Detail label="Venta" value={formatCurrency(product.salePrice)} /></div>{product.stock <= product.minimumStock ? <p className="mt-3 rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral">Quedan pocas unidades de este producto.</p> : null}<Button className="mt-4" type="button" tone="danger" size="sm" icon={<Trash2 size={16} />} onClick={() => window.confirm("¿Eliminar este producto?") && removeEsikaProduct(product.$id)}>Eliminar</Button></Surface>)}</div>
     </div>
   );
 }
@@ -588,7 +589,7 @@ export function EsikaSalePage() {
 }
 
 export function EsikaCustomersPage() {
-  const { data, saving, addEsikaCustomer } = useFinance();
+  const { data, saving, addEsikaCustomer, removeEsikaCustomer } = useFinance();
   const [error, setError] = useState("");
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -602,7 +603,7 @@ export function EsikaCustomersPage() {
     <div className="space-y-5">
       <PageHeader title="Clientes Ésika" description="Historial, teléfonos y saldos pendientes por clienta." />
       <Surface><form className="grid gap-4 md:grid-cols-4" onSubmit={onSubmit}>{error ? <p className="rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral md:col-span-4">{error}</p> : null}<Field label="Nombre"><Input name="name" required /></Field><Field label="Teléfono"><Input name="phone" inputMode="tel" required /></Field><Field label="Dirección"><Input name="address" /></Field><Field label="Notas"><Input name="notes" /></Field><div className="md:col-span-4"><Button disabled={saving}>Guardar clienta</Button></div></form></Surface>
-      <div className="grid gap-4 lg:grid-cols-2">{data.esikaCustomers.length === 0 ? <EmptyState title="Aún no hay clientas" description="Agregue una clienta para registrar sus compras de Ésika." /> : data.esikaCustomers.map((customer) => { const sales = data.esikaSales.filter((sale) => sale.customerId === customer.$id); const total = sum(sales.map((sale) => sale.total)); const paid = sum(sales.map((sale) => sale.amountPaid)); const pending = sum(sales.map((sale) => sale.pendingAmount)); const message = encodeURIComponent(`Hola, te escribe Doña Mónica. Te recuerdo que tienes un saldo pendiente de ${formatCurrency(pending)} por tu compra de Ésika. Muchas gracias.`); return <Surface key={customer.$id}><div className="flex items-start justify-between gap-4"><div><p className="font-bold">{customer.name}</p><p className="text-sm text-ink/60">{customer.phone}</p></div>{pending > 0 ? <Badge tone="danger">Debe {formatCurrency(pending)}</Badge> : <Badge tone="success">Al día</Badge>}</div><div className="mt-4 grid grid-cols-3 gap-2"><Detail label="Compró" value={formatCurrency(total)} /><Detail label="Pagó" value={formatCurrency(paid)} /><Detail label="Deuda" value={formatCurrency(pending)} /></div><div className="mt-4 flex flex-wrap gap-2"><a href={`https://wa.me/${customer.phone.replace(/\D/g, "")}?text=${message}`} target="_blank" rel="noreferrer"><Button tone="success" size="sm" icon={<MessageCircle size={16} />}>WhatsApp</Button></a><Link href="/pagos-pendientes"><Button tone="secondary" size="sm">Ver pagos</Button></Link></div></Surface>; })}</div>
+      <div className="grid gap-4 lg:grid-cols-2">{data.esikaCustomers.length === 0 ? <EmptyState title="Aún no hay clientas" description="Agregue una clienta para registrar sus compras de Ésika." /> : data.esikaCustomers.map((customer) => { const sales = data.esikaSales.filter((sale) => sale.customerId === customer.$id); const total = sum(sales.map((sale) => sale.total)); const paid = sum(sales.map((sale) => sale.amountPaid)); const pending = sum(sales.map((sale) => sale.pendingAmount)); const message = encodeURIComponent(`Hola, te escribe Doña Mónica. Te recuerdo que tienes un saldo pendiente de ${formatCurrency(pending)} por tu compra de Ésika. Muchas gracias.`); return <Surface key={customer.$id}><div className="flex items-start justify-between gap-4"><div><p className="font-bold">{customer.name}</p><p className="text-sm text-ink/60">{customer.phone}</p></div>{pending > 0 ? <Badge tone="danger">Debe {formatCurrency(pending)}</Badge> : <Badge tone="success">Al día</Badge>}</div><div className="mt-4 grid grid-cols-3 gap-2"><Detail label="Compró" value={formatCurrency(total)} /><Detail label="Pagó" value={formatCurrency(paid)} /><Detail label="Deuda" value={formatCurrency(pending)} /></div><div className="mt-4 flex flex-wrap gap-2"><a href={`https://wa.me/${customer.phone.replace(/\D/g, "")}?text=${message}`} target="_blank" rel="noreferrer"><Button tone="success" size="sm" icon={<MessageCircle size={16} />}>WhatsApp</Button></a><Link href="/pagos-pendientes"><Button tone="secondary" size="sm">Ver pagos</Button></Link><Button type="button" tone="danger" size="sm" icon={<Trash2 size={16} />} onClick={() => window.confirm("¿Eliminar esta clienta y sus ventas asociadas?") && removeEsikaCustomer(customer.$id)}>Eliminar</Button></div></Surface>; })}</div>
     </div>
   );
 }
@@ -692,8 +693,8 @@ export function ProfilePage() {
 }
 
 export function SettingsPage() {
-  const { profile, saveProfile, recoverPassword, logoutUser } = useAuth();
-  const { data, addCategory, saveCategory } = useFinance();
+  const { profile, saveProfile } = useAuth();
+  const { data, addCategory, saveCategory, removeCategory } = useFinance();
   const [pin, setPin] = useState("");
   const [categoryError, setCategoryError] = useState("");
   if (!profile) return null;
@@ -720,38 +721,67 @@ export function SettingsPage() {
     <div className="space-y-5">
       <PageHeader title="Configuración" description="Preferencias de la app, categorías, seguridad y datos." />
       <div className="grid gap-4 lg:grid-cols-2">
-        <Surface><h2 className="font-bold">Seguridad</h2><div className="mt-4 grid gap-3"><Field label="PIN rápido"><Input value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} type="password" inputMode="numeric" placeholder="4 a 6 números" /></Field><div className="flex flex-wrap gap-2"><Button disabled={pin.length < 4} onClick={async () => { await saveDevicePin(profile.userId, pin); await saveProfile(profile.$id, { fullName: profile.fullName, phone: profile.phone, avatar: profile.avatar, currency: profile.currency, timezone: profile.timezone, language: profile.language, dateFormat: profile.dateFormat, weekStartsOn: profile.weekStartsOn, theme: profile.theme, textScale: profile.textScale, pinEnabled: true }); setPin(""); }}>Activar PIN</Button><Button tone="secondary" onClick={async () => { removeDevicePin(profile.userId); await saveProfile(profile.$id, { fullName: profile.fullName, phone: profile.phone, avatar: profile.avatar, currency: profile.currency, timezone: profile.timezone, language: profile.language, dateFormat: profile.dateFormat, weekStartsOn: profile.weekStartsOn, theme: profile.theme, textScale: profile.textScale, pinEnabled: false }); }}>Desactivar PIN</Button></div><Button tone="secondary" onClick={() => recoverPassword(profile.email)}>Enviar enlace para cambiar contraseña</Button><Button tone="danger" onClick={logoutUser}>Cerrar sesión</Button></div></Surface>
+        <Surface><h2 className="font-bold">Seguridad</h2><div className="mt-4 grid gap-3"><Field label="PIN rápido"><Input value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} type="password" inputMode="numeric" placeholder="4 a 6 números" /></Field><div className="flex flex-wrap gap-2"><Button disabled={pin.length < 4} onClick={async () => { await saveDevicePin(profile.userId, pin); await saveProfile(profile.$id, { fullName: profile.fullName, phone: profile.phone, avatar: profile.avatar, currency: profile.currency, timezone: profile.timezone, language: profile.language, dateFormat: profile.dateFormat, weekStartsOn: profile.weekStartsOn, theme: profile.theme, textScale: profile.textScale, pinEnabled: true }); setPin(""); }}>Activar PIN</Button><Button tone="secondary" onClick={async () => { removeDevicePin(profile.userId); await saveProfile(profile.$id, { fullName: profile.fullName, phone: profile.phone, avatar: profile.avatar, currency: profile.currency, timezone: profile.timezone, language: profile.language, dateFormat: profile.dateFormat, weekStartsOn: profile.weekStartsOn, theme: profile.theme, textScale: profile.textScale, pinEnabled: false }); }}>Desactivar PIN</Button></div></div></Surface>
         <Surface><h2 className="font-bold">Datos</h2><div className="mt-4 grid gap-3"><Button tone="secondary" icon={<Download size={18} />} onClick={downloadBackup}>Descargar copia de seguridad JSON</Button><Button tone="secondary" icon={<FileSpreadsheet size={18} />} onClick={() => exportTransactionsCsv(data.transactions, data.categories, "Todos los datos")}>Exportar movimientos CSV</Button></div></Surface>
       </div>
-      <Surface><h2 className="font-bold">Categorías</h2><form className="mt-4 grid gap-3 md:grid-cols-4" onSubmit={categorySubmit}>{categoryError ? <p className="rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral md:col-span-4">{categoryError}</p> : null}<Field label="Nombre"><Input name="name" /></Field><Field label="Tipo"><Select name="type"><option value="expense">Gasto</option><option value="income">Ingreso</option><option value="both">Ambos</option><option value="esika">Ésika</option></Select></Field><Field label="Color"><Input name="color" type="color" defaultValue="#8B3A4A" /></Field><div className="mt-7"><Button icon={<Plus size={18} />}>Crear categoría</Button></div></form><div className="mt-5 space-y-2">{data.categories.map((category) => <CategorySettingsRow key={category.$id} category={category} saveCategory={saveCategory} />)}</div></Surface>
+      <Surface><h2 className="font-bold">Categorías</h2><form className="mt-4 grid gap-3 md:grid-cols-4" onSubmit={categorySubmit}>{categoryError ? <p className="rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral md:col-span-4">{categoryError}</p> : null}<Field label="Nombre"><Input name="name" /></Field><Field label="Tipo"><Select name="type"><option value="expense">Gasto</option><option value="income">Ingreso</option><option value="both">Ambos</option><option value="esika">Ésika</option></Select></Field><Field label="Color"><Input name="color" type="color" defaultValue="#8B3A4A" /></Field><div className="mt-7"><Button icon={<Plus size={18} />}>Crear categoría</Button></div></form><div className="mt-5 space-y-2">{data.categories.map((category) => <CategorySettingsRow key={category.$id} category={category} saveCategory={saveCategory} removeCategory={removeCategory} />)}</div></Surface>
     </div>
   );
 }
 
-function CategorySettingsRow({ category, saveCategory }: { category: WithDocument<Category>; saveCategory: (id: string, input: { name?: string; isActive?: boolean; sortOrder?: number; color?: string }) => Promise<boolean> }) {
+function CategorySettingsRow({ category, saveCategory, removeCategory }: { category: WithDocument<Category>; saveCategory: (id: string, input: { name?: string; isActive?: boolean; sortOrder?: number; color?: string }) => Promise<boolean>; removeCategory: (id: string) => Promise<boolean> }) {
   const [name, setName] = useState(category.name);
   const [color, setColor] = useState(category.color);
-  return <div className="grid gap-2 rounded-lg bg-linen p-3 md:grid-cols-[1fr_120px_120px_240px]"><Input value={name} onChange={(event) => setName(event.target.value)} /><Input type="color" value={color} onChange={(event) => setColor(event.target.value)} /><Badge tone={category.isActive ? "success" : "neutral"}>{category.isActive ? "Visible" : "Oculta"}</Badge><div className="flex flex-wrap gap-2"><Button type="button" size="sm" tone="secondary" onClick={() => saveCategory(category.$id, { name, color })}>Guardar</Button><Button type="button" size="sm" tone="secondary" onClick={() => saveCategory(category.$id, { isActive: !category.isActive })}>{category.isActive ? "Ocultar" : "Mostrar"}</Button><Button type="button" size="sm" tone="ghost" onClick={() => saveCategory(category.$id, { sortOrder: Math.max(0, category.sortOrder - 1) })}>Subir</Button><Button type="button" size="sm" tone="ghost" onClick={() => saveCategory(category.$id, { sortOrder: category.sortOrder + 1 })}>Bajar</Button></div></div>;
+  return <div className="grid gap-2 rounded-lg bg-linen p-3 md:grid-cols-[1fr_120px_120px_240px]"><Input value={name} onChange={(event) => setName(event.target.value)} /><Input type="color" value={color} onChange={(event) => setColor(event.target.value)} /><Badge tone={category.isActive ? "success" : "neutral"}>{category.isActive ? "Visible" : "Oculta"}</Badge><div className="flex flex-wrap gap-2"><Button type="button" size="sm" tone="secondary" onClick={() => saveCategory(category.$id, { name, color })}>Guardar</Button><Button type="button" size="sm" tone="secondary" onClick={() => saveCategory(category.$id, { isActive: !category.isActive })}>{category.isActive ? "Ocultar" : "Mostrar"}</Button><Button type="button" size="sm" tone="ghost" onClick={() => saveCategory(category.$id, { sortOrder: Math.max(0, category.sortOrder - 1) })}>Subir</Button><Button type="button" size="sm" tone="ghost" onClick={() => saveCategory(category.$id, { sortOrder: category.sortOrder + 1 })}>Bajar</Button>{!category.isDefault ? <Button type="button" size="sm" tone="danger" icon={<Trash2 size={16} />} onClick={() => window.confirm("¿Eliminar esta categoría?") && removeCategory(category.$id)}>Eliminar</Button> : null}</div></div>;
 }
 
 export function LoginPage() {
-  const { login, user } = useAuth();
+  const { login, signUp, user } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
   const [error, setError] = useState("");
+  const [mode, setMode] = useState<"login" | "signup">("login");
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
     const email = formString(fd, "email");
     const password = formString(fd, "password");
+    const fullName = formString(fd, "fullName") || "Doña Mónica";
     if (!email || !password) return setError("Ingrese correo y contraseña.");
+    if (password.length < 8) return setError("La contraseña debe tener al menos 8 caracteres.");
     setError("");
-    if (await login(email, password)) router.replace(params.get("next") || "/dashboard");
+    const ok = mode === "signup" ? await signUp(email, password, fullName) : await login(email, password);
+    if (ok) router.replace(params.get("next") || "/dashboard");
   }
+
   if (user) router.replace("/dashboard");
+
   return (
     <main className="grid min-h-screen bg-cream text-ink lg:grid-cols-[1fr_1.1fr]">
-      <section className="flex items-center justify-center px-6 py-10"><div className="w-full max-w-md rounded-lg bg-white p-6 shadow-soft"><div className="mx-auto h-28 w-28 overflow-hidden rounded-2xl shadow-soft"><Image src="/logo.png" alt="Los gastos de Doña Mónica" width={112} height={112} className="h-full w-full object-cover" priority /></div><h1 className="mt-6 text-center font-display text-3xl font-semibold">Los gastos de Doña Mónica</h1><p className="mt-2 text-center text-sm text-ink/65">Ingrese con su correo y contraseña para cuidar sus cuentas.</p><form className="mt-6 space-y-4" onSubmit={onSubmit}>{error ? <p className="rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral">{error}</p> : null}<Field label="Correo"><Input name="email" type="email" autoComplete="email" required /></Field><Field label="Contraseña"><Input name="password" type="password" autoComplete="current-password" required /></Field><Button className="w-full" size="lg">Entrar</Button></form><Link className="mt-4 block text-center text-sm font-semibold text-wine" href="/recuperar-contrasena">Recuperar contraseña</Link></div></section>
+      <section className="flex items-center justify-center px-6 py-10">
+        <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-soft">
+          <div className="mx-auto h-28 w-28 overflow-hidden rounded-2xl shadow-soft">
+            <Image src="/logo.png" alt="Los gastos de Doña Mónica" width={112} height={112} className="h-full w-full object-cover" priority />
+          </div>
+          <h1 className="mt-6 text-center font-display text-3xl font-semibold">Los gastos de Doña Mónica</h1>
+          <p className="mt-2 text-center text-sm text-ink/65">
+            {mode === "signup" ? "Cree una cuenta con correo y una contraseña nueva." : "Ingrese con su correo y contraseña para cuidar sus cuentas."}
+          </p>
+          <div className="mt-5 grid grid-cols-2 rounded-lg bg-linen p-1">
+            <button type="button" onClick={() => setMode("login")} className={`rounded-md px-3 py-3 text-sm font-bold ${mode === "login" ? "bg-white text-wine shadow-sm" : "text-ink/60"}`}>Entrar</button>
+            <button type="button" onClick={() => setMode("signup")} className={`rounded-md px-3 py-3 text-sm font-bold ${mode === "signup" ? "bg-white text-wine shadow-sm" : "text-ink/60"}`}>Crear cuenta</button>
+          </div>
+          <form className="mt-6 space-y-4" onSubmit={onSubmit}>
+            {error ? <p className="rounded-lg bg-coral/10 px-4 py-3 text-sm text-coral">{error}</p> : null}
+            {mode === "signup" ? <Field label="Nombre"><Input name="fullName" defaultValue="Doña Mónica" autoComplete="name" /></Field> : null}
+            <Field label="Correo"><Input name="email" type="email" autoComplete="email" required /></Field>
+            <Field label="Contraseña" hint={mode === "signup" ? "Use mínimo 8 caracteres." : undefined}><Input name="password" type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} minLength={8} required /></Field>
+            <Button className="w-full" size="lg">{mode === "signup" ? "Crear cuenta" : "Entrar"}</Button>
+          </form>
+          <Link className="mt-4 block text-center text-sm font-semibold text-wine" href="/recuperar-contrasena">Recuperar contraseña</Link>
+        </div>
+      </section>
       <section className="hidden items-center justify-center bg-linen px-10 lg:flex"><div className="max-w-lg"><p className="font-display text-5xl font-semibold leading-tight">Una app familiar, clara y hecha para cada sol importante.</p><p className="mt-5 text-ink/70">Gastos, ingresos, pagos de casa, universidades y ventas de Ésika en un solo lugar seguro.</p></div></section>
     </main>
   );
@@ -780,5 +810,12 @@ export function RecoveryPage() {
     <main className="flex min-h-screen items-center justify-center bg-cream px-6 text-ink"><section className="w-full max-w-md rounded-lg bg-white p-6 shadow-soft"><div className="mx-auto h-24 w-24 overflow-hidden rounded-2xl"><Image src="/logo.png" alt="Los gastos de Doña Mónica" width={96} height={96} className="h-full w-full object-cover" /></div><h1 className="mt-5 text-center font-display text-3xl font-semibold">Recuperar contraseña</h1><form className="mt-6 space-y-4" onSubmit={onSubmit}>{message ? <p className="rounded-lg bg-info/10 px-4 py-3 text-sm text-info">{message}</p> : null}{userId && secret ? <Field label="Nueva contraseña"><Input name="password" type="password" minLength={8} required /></Field> : <Field label="Correo"><Input name="email" type="email" required /></Field>}<Button className="w-full">Continuar</Button></form><Link className="mt-4 block text-center text-sm font-semibold text-wine" href="/login">Volver a inicio de sesión</Link></section></main>
   );
 }
+
+
+
+
+
+
+
 
 
